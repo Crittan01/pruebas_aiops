@@ -2,26 +2,39 @@
 - name: Validate Filesystem
   hosts: "{{ target_host | default([]) }}"
   gather_facts: true
-  become: true
 
   tasks:
-    - name: Get filesystem info
-      ansible.builtin.shell: |
-        set -o pipefail
-        df -h / | tail -1
-      register: fs_info
-      changed_when: false
+    - name: Get filesystem info from facts
+      ansible.builtin.set_fact:
+        fs_info: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | first }}"
+      register: fs_data
 
-    - name: Get largest dirs
-      ansible.builtin.shell: |
-        set -o pipefail
-        du -sh /* 2>/dev/null | sort -rh | head -5
-      register: largest
-      changed_when: false
-
-    - name: Show results
+    - name: Debug - Show filesystem data
       ansible.builtin.debug:
         msg:
-          - "Filesystem: {{ fs_info.stdout }}"
-          - "Largest dirs:"
-          - "{{ largest.stdout_lines }}"
+          - "Mount: {{ fs_info.mount }}"
+          - "Device: {{ fs_info.device }}"
+          - "Size (MB): {{ fs_info.size_total | default('N/A') }}"
+          - "Free (MB): {{ fs_info.size_available | default('N/A') }}"
+          - "Used (MB): {{ (fs_info.size_total - fs_info.size_available) | default('N/A') }}"
+
+    - name: Calculate filesystem percentage used
+      ansible.builtin.set_fact:
+        fs_percentage_used: "{{ ((fs_info.size_total - fs_info.size_available) / fs_info.size_total * 100) | int }}"
+
+    - name: Return filesystem data as JSON
+      ansible.builtin.set_fact:
+        filesystem_report:
+          mount: "{{ fs_info.mount }}"
+          device: "{{ fs_info.device }}"
+          size_total_mb: "{{ fs_info.size_total | int }}"
+          size_total_gb: "{{ (fs_info.size_total / 1024) | int }}"
+          size_available_mb: "{{ fs_info.size_available | int }}"
+          size_available_gb: "{{ (fs_info.size_available / 1024) | int }}"
+          size_used_mb: "{{ (fs_info.size_total - fs_info.size_available) | int }}"
+          size_used_gb: "{{ ((fs_info.size_total - fs_info.size_available) / 1024) | int }}"
+          percentage_used: "{{ fs_percentage_used }}"
+
+    - name: Display final report
+      ansible.builtin.debug:
+        msg: "{{ filesystem_report | to_nice_json }}"
