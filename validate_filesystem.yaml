@@ -7,34 +7,22 @@
     - name: Get filesystem info from facts
       ansible.builtin.set_fact:
         fs_info: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | first }}"
-      register: fs_data
 
-    - name: Debug - Show filesystem data
-      ansible.builtin.debug:
-        msg:
-          - "Mount: {{ fs_info.mount }}"
-          - "Device: {{ fs_info.device }}"
-          - "Size (MB): {{ fs_info.size_total | default('N/A') }}"
-          - "Free (MB): {{ fs_info.size_available | default('N/A') }}"
-          - "Used (MB): {{ (fs_info.size_total - fs_info.size_available) | default('N/A') }}"
-
-    - name: Calculate filesystem percentage used
+    - name: Calculate metrics
       ansible.builtin.set_fact:
-        fs_percentage_used: "{{ ((fs_info.size_total - fs_info.size_available) / fs_info.size_total * 100) | int }}"
+        size_total_mb: "{{ fs_info.size_total }}"
+        size_available_mb: "{{ fs_info.size_available }}"
+        size_used_mb: "{{ fs_info.size_total - fs_info.size_available }}"
+        percentage_used: "{{ ((fs_info.size_total - fs_info.size_available) / fs_info.size_total * 100) | int }}"
 
-    - name: Return filesystem data as JSON
-      ansible.builtin.set_fact:
-        filesystem_report:
-          mount: "{{ fs_info.mount }}"
-          device: "{{ fs_info.device }}"
-          size_total_mb: "{{ fs_info.size_total | int }}"
-          size_total_gb: "{{ (fs_info.size_total / 1024) | int }}"
-          size_available_mb: "{{ fs_info.size_available | int }}"
-          size_available_gb: "{{ (fs_info.size_available / 1024) | int }}"
-          size_used_mb: "{{ (fs_info.size_total - fs_info.size_available) | int }}"
-          size_used_gb: "{{ ((fs_info.size_total - fs_info.size_available) / 1024) | int }}"
-          percentage_used: "{{ fs_percentage_used }}"
-
-    - name: Display final report
-      ansible.builtin.debug:
-        msg: "{{ filesystem_report | to_nice_json }}"
+    # ✅ ESTO ES LA MAGIA: set_stats devuelve datos directamente a AWX API
+    - name: Return filesystem data via set_stats
+      ansible.builtin.set_stats:
+        data:
+          filesystem_report:
+            mount: "{{ fs_info.mount }}"
+            device: "{{ fs_info.device }}"
+            size_total_mb: "{{ size_total_mb }}"
+            size_available_mb: "{{ size_available_mb }}"
+            size_used_mb: "{{ size_used_mb }}"
+            percentage_used: "{{ percentage_used }}"
