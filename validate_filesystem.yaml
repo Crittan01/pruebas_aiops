@@ -2,6 +2,7 @@
 - name: Validate Filesystem
   hosts: "{{ target_host | default([]) }}"
   gather_facts: true
+  become: true
 
   tasks:
     - name: Get filesystem info
