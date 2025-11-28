@@ -1,0 +1,26 @@
+---
+- name: Validate Filesystem
+  hosts: "{{ target_host | default([]) }}"
+  gather_facts: true
+
+  tasks:
+    - name: Get filesystem info
+      ansible.builtin.shell: |
+        set -o pipefail
+        df -h / | tail -1
+      register: fs_info
+      changed_when: false
+
+    - name: Get largest dirs
+      ansible.builtin.shell: |
+        set -o pipefail
+        du -sh /* 2>/dev/null | sort -rh | head -5
+      register: largest
+      changed_when: false
+
+    - name: Show results
+      ansible.builtin.debug:
+        msg:
+          - "Filesystem: {{ fs_info.stdout }}"
+          - "Largest dirs:"
+          - "{{ largest.stdout_lines }}"
